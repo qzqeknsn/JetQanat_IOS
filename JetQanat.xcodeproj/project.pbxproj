@@ -6,13 +6,34 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		3193C70D2EF0917E009F0E01 /* asda.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3193C70C2EF0917E009F0E01 /* asda.swift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		0783AF2F2EF031EF0015BA95 /* JetQanat.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JetQanat.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		3193C70C2EF0917E009F0E01 /* asda.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = asda.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		3193C7152EF09200009F0E01 /* Exceptions for "JetQanat" folder in "JetQanat" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Controllers/Payment/Untitled.swift,
+				Models/Untitled.swift,
+				"ViewModels/Untitled 2.swift",
+				ViewModels/Untitled.swift,
+			);
+			target = 0783AF2E2EF031EF0015BA95 /* JetQanat */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		0783AF312EF031EF0015BA95 /* JetQanat */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				3193C7152EF09200009F0E01 /* Exceptions for "JetQanat" folder in "JetQanat" target */,
+			);
 			path = JetQanat;
 			sourceTree = "<group>";
 		};
@@ -34,6 +55,7 @@
 			children = (
 				0783AF312EF031EF0015BA95 /* JetQanat */,
 				0783AF302EF031EF0015BA95 /* Products */,
+				3193C70C2EF0917E009F0E01 /* asda.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -122,6 +144,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3193C70D2EF0917E009F0E01 /* asda.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

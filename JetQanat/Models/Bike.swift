@@ -1,15 +1,15 @@
 import Foundation
 
-// Модель данных для мотоциклов
+// Модель для мотиков
 struct Bike: Codable, Identifiable {
     let id: Int
     let name: String
     let price: Int
-    let category: String // "scooter", "sport"
-    let type: String     // "sale" или "rent" - для фильтра!
+    let category: String
+    let type: String
     let image_url: String
     
-    // Форматированная цена для отображения
+    // Отображение цен
     var formattedPrice: String {
         return "₸\(price.formatted())"
     }

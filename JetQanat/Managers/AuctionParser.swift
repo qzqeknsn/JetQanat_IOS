@@ -1,81 +1,202 @@
-//
-//  AuctionParser.swift
-//  JetQanat
-//
-//  Created by Amangeldin Yersultan on 16.12.2025.
-//
 
 import Foundation
 import UIKit
 
-class AuctionParser: NSObject, XMLParserDelegate {
+// MARK: - Models
+
+struct Brand: Identifiable, Codable {
+    let id: Int
+    let name: String
+    let url: String
+}
+
+struct BrandModel: Identifiable, Codable {
+    let id: Int
+    let name: String
+    let url: String
+}
+
+class AuctionParser {
     
     static let shared = AuctionParser()
-    private override init() {}
+    private init() {}
     
-    // Completion handler type
-    typealias Completion = (Result<String, Error>) -> Void
+    // MARK: - API
     
-    // Currency Parsing Properties
-    private var currentElement = ""
-    private var foundRUB = false
-    private var tengeRate: Double = 5.0
-    private var tempValue = ""
-    private var nominal: Double = 1.0
+    /// Fetches all brands from the main page
+    func fetchBrands(completion: @escaping (Result<[Brand], Error>) -> Void) {
+        let url = "https://motobay.su/brands"
+        fetchHTML(url: url) { [weak self] result in
+            switch result {
+            case .success(let html):
+                let brands = self?.parseBrands(from: html) ?? []
+                completion(.success(brands))
+            case .failure(let error):
+                completion(.failure(error))
+            }
+        }
+    }
     
-    /// Main function to fetch data and parse it like the PHP script
-    /// - Parameters:
-    ///   - url: The page URL (e.g. from brands list)
-    ///   - completion: Returns the modified HTML string
-    func fetchAuctionData(url: String, completion: @escaping Completion) {
-        // 1. Fetch Currency Rate
-        fetchCurrencyRate { [weak self] rate in
+    /// Fetches models for a given brand
+    func fetchModels(for brand: Brand, limit: Int = 10, completion: @escaping (Result<[BrandModel], Error>) -> Void) {
+        fetchHTML(url: brand.url) { [weak self] result in
+            switch result {
+            case .success(let html):
+                var models = self?.parseModels(from: html) ?? []
+                if limit > 0 {
+                    models = Array(models.prefix(limit))
+                }
+                completion(.success(models))
+            case .failure(let error):
+                completion(.failure(error))
+            }
+        }
+    }
+    
+    /// Fetches bikes for a specific model URL
+    func fetchBikes(url: String, completion: @escaping (Result<[Bike], Error>) -> Void) {
+        // Bypass CBR.ru due to SSL errors (-1200)
+        // Use a fixed rate for stability (Approx 5.0 KZT per RUB)
+        let rate = 5.0
+        
+        self.fetchHTML(url: url) { [weak self] result in
             guard let self = self else { return }
-            self.tengeRate = rate
+            switch result {
+            case .success(let html):
+                let bikes = self.parseBikes(from: html, rate: rate)
+                completion(.success(bikes))
+            case .failure(let error):
+                completion(.failure(error))
+            }
+        }
+    }
+    
+    // MARK: - Parsing Logic
+    
+    private func parseBrands(from html: String) -> [Brand] {
+        var brands: [Brand] = []
+        let pattern = "<li><a href=\"/brands/(\\d+)\">([^<]+)</a></li>"
+        let matches = self.matches(for: pattern, in: html)
+        
+        for match in matches {
+            let id = Int(match[1]) ?? 0
+            let name = match[2].trimmingCharacters(in: .whitespacesAndNewlines)
+            let url = "https://motobay.su/brands/\(id)"
+            if id > 0 {
+                brands.append(Brand(id: id, name: name, url: url))
+            }
+        }
+        return brands
+    }
+    
+    private func parseModels(from html: String) -> [BrandModel] {
+        var models: [BrandModel] = []
+        let pattern = "<a href=\"(/brands/\\d+/models/(\\d+))\">([^<]+)</a>"
+        let matches = self.matches(for: pattern, in: html)
+        
+        for match in matches {
+            let relativeUrl = match[1]
+            let id = Int(match[2]) ?? 0
+            let name = match[3].trimmingCharacters(in: .whitespacesAndNewlines)
+            let url = "https://motobay.su" + relativeUrl
+            if id > 0 {
+                models.append(BrandModel(id: id, name: name, url: url))
+            }
+        }
+        return models
+    }
+    
+    private func parseBikes(from html: String, rate: Double) -> [Bike] {
+        var bikes: [Bike] = []
+        
+        let rowPattern = "<tr[^>]*data-id=\"(\\d+)\"[^>]*>(.*?)</tr>"
+        let rows = matches(for: rowPattern, in: html)
+        
+        for row in rows {
+            let id = row[1]
+            let content = row[2]
             
-            // 2. Fetch HTML Content
-            self.fetchHTML(url: url) { result in
-                switch result {
-                case .success(let html):
-                    // 3. Process HTML
-                    let processed = self.processHTML(html, rate: rate)
-                    completion(.success(processed))
-                case .failure(let error):
-                    completion(.failure(error))
+            func extract(pattern: String) -> String? {
+                if let match = firstMatch(for: pattern, in: content) {
+                    return match[1].trimmingCharacters(in: .whitespacesAndNewlines)
+                        .replacingOccurrences(of: "&#13;", with: "")
+                        .replacingOccurrences(of: "&nbsp;", with: " ")
+                }
+                return nil
+            }
+            
+            var imageUrl = ""
+            if let imgMatch = firstMatch(for: "<img[^>]+src=\"([^\"]+)\"", in: content) {
+                imageUrl = imgMatch[1]
+                if imageUrl.starts(with: "/") {
+                    imageUrl = "https://motobay.su" + imageUrl
                 }
             }
-        }
-    }
-    
-    private func fetchCurrencyRate(completion: @escaping (Double) -> Void) {
-        // URL from PHP: https://www.cbr.ru/scripts/XML_daily.asp
-        guard let url = URL(string: "https://www.cbr.ru/scripts/XML_daily.asp") else {
-            completion(5.0)
-            return
-        }
-        
-        // PHP logic: timeout 30
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30
-        let session = URLSession(configuration: config)
-        
-        let task = session.dataTask(with: url) { data, _, _ in
-            guard let data = data else {
-                completion(5.0)
-                return
+            
+            let title = extract(pattern: "<span class=\"make\">([^<]+)</span>") ?? "Unknown Bike"
+            let lotNumber = extract(pattern: "<span class=\"number\">([^<]+)</span>")
+            let auction = extract(pattern: "<span class=\"area\">([^<]+)</span>")
+            let date = extract(pattern: "<span class=\"date\">([^<]+)</span>")
+            
+            var year: String?
+            if let yearMatch = firstMatch(for: "<td>(\\d{4})</td>", in: content) { year = yearMatch[1] }
+            
+            var engineVolume: String?
+            if let engineMatch = firstMatch(for: "<td>(\\d{3,4})</td>", in: content) {
+                if engineMatch[1] != year { engineVolume = engineMatch[1] }
             }
             
-            // Parse XML
-            let parser = XMLParser(data: data)
-            parser.delegate = self
-            if parser.parse() {
-                completion(self.tengeRate)
-            } else {
-                completion(5.0)
+            let frame = extract(pattern: "<span class=\"chassis_n\">([^<]+)</span>")
+            let mileage = extract(pattern: "class=\"mileage\">([^<]+)</td>")
+            let rating = extract(pattern: "class=\"score\">([^<]+)</td>")
+            
+            var status: String?
+            if let statusMatch = firstMatch(for: "<td>(SOLD|Unsold|Available)</td>", in: content) { status = statusMatch[1] }
+            
+            var price = 0
+            if let priceMatch = firstMatch(for: "<span>([\\d\\s]+) р\\.", in: content) {
+                let pStr = priceMatch[1].replacingOccurrences(of: " ", with: "")
+                                              .replacingOccurrences(of: "\u{00A0}", with: "")
+                price = Int(pStr) ?? 0
+            } else if let yenMatch = firstMatch(for: "<span class=\"price-total\">([\\d\\s]+) ¥</span>", in: content) {
+                 let pStr = yenMatch[1].replacingOccurrences(of: " ", with: "")
+                 _ = Double(pStr) ?? 0
             }
+            
+            var startPrice: String?
+            if let startMatch = firstMatch(for: "<span class=\"price-start\">([\\d\\s]+ ¥)</span>", in: content) {
+                startPrice = startMatch[1]
+            }
+            
+            let convertedPrice = Int(Double(price) * rate)
+            
+            var bike = Bike(
+                id: Int(id) ?? 0,
+                name: title,
+                price: convertedPrice,
+                category: "Motorcycles",
+                type: "auction",
+                image_url: imageUrl
+            )
+            
+            bike.lotNumber = lotNumber
+            bike.auction = auction
+            bike.date = date
+            bike.year = year
+            bike.engineVolume = engineVolume
+            bike.frame = frame
+            bike.mileage = mileage
+            bike.rating = rating
+            bike.startPrice = startPrice
+            bike.status = status
+            
+            bikes.append(bike)
         }
-        task.resume()
+        
+        return bikes
     }
+    
+    // MARK: - Networking
     
     private func fetchHTML(url: String, completion: @escaping (Result<String, Error>) -> Void) {
         guard let urlObj = URL(string: url) else {
@@ -87,182 +208,80 @@ class AuctionParser: NSObject, XMLParserDelegate {
         config.timeoutIntervalForRequest = 30
         let session = URLSession(configuration: config)
         
-        let task = session.dataTask(with: urlObj) { data, response, error in
-            if let error = error {
-                completion(.failure(error))
-                return
-            }
-            
-            // Should be UTF8 or detected encoding
+        session.dataTask(with: urlObj) { data, _, error in
+            if let error = error { completion(.failure(error)); return }
             guard let data = data, let str = String(data: data, encoding: .utf8) else {
                 completion(.failure(NSError(domain: "No Data", code: 0)))
                 return
             }
-            
             completion(.success(str))
-        }
-        task.resume()
+        }.resume()
     }
     
-    private func processHTML(_ html: String, rate: Double) -> String {
-        var str = html
-        var str2 = ""
+    private func fetchCurrencyRate(completion: @escaping (Double) -> Void) {
+        let defaultRate = 5.0
+        guard let url = URL(string: "https://www.cbr.ru/scripts/XML_daily.asp") else {
+            completion(defaultRate); return
+        }
         
-        // PHP Logic Replication
-        // Logic attempts to find content between specific div/table markers
-        
-        // Check for <div class="lots">
-        var startRange = str.range(of: "<div class=\"lots\">")
-        var endRange: Range<String.Index>?
-        
-        if let start = startRange {
-            // Found <div class="lots">
-            // PHP: $end_pos = strpos($str,"<script>var app = 'statistic'");
-            if let end = str.range(of: "<script>var app = 'statistic'", range: start.upperBound..<str.endIndex) {
-                endRange = end
+        URLSession.shared.dataTask(with: url) { data, _, _ in
+            guard let data = data else { completion(defaultRate); return }
+            let parserDelegate = CurrencyParserDelegate()
+            let parser = XMLParser(data: data)
+            parser.delegate = parserDelegate
+            if parser.parse() {
+                completion(parserDelegate.rubToKztRate)
+            } else {
+                completion(defaultRate)
             }
-        } else {
-            // Check for <table class="table lots">
-            startRange = str.range(of: "<table class=\"table lots\">")
-            if let start = startRange {
-                if let end = str.range(of: "</table>", range: start.upperBound..<str.endIndex) {
-                    // PHP: $end_pos = strpos($str,'</table>') + 8;
-                    // Swift range upperbound is exclusive, need to add 8 offset effectively
-                    let endIdx = str.index(end.upperBound, offsetBy: 0) // table closing tag
-                    // We can just take the substring including </table>
-                    endRange = end
-                    // PHP code actually +8 which suggests length of </table> is 8.
+        }.resume()
+    }
+    
+    // MARK: - Regex Helpers
+    
+    private func matches(for regex: String, in text: String) -> [[String]] {
+        do {
+            let regex = try NSRegularExpression(pattern: regex, options: [.dotMatchesLineSeparators])
+            let results = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+            return results.map { match in
+                (0..<match.numberOfRanges).map {
+                    let range = match.range(at: $0)
+                    return range.location != NSNotFound ? String(text[Range(range, in: text)!]) : ""
                 }
             }
-        }
-        
-        if let start = startRange, let end = endRange {
-            let content = str[start.lowerBound..<end.lowerBound]
-             // PHP: $str2 = "<div class='div_lots'>".substr($str,$start_pos,$str_length)."</div>";
-            str2 = "<div class='div_lots'>\(content)</div>"
-            
-            // Replacements
-            // $str2 = str_replace('/brands','https://japanmotor.kz/statistika-aukczionov/brands',$str2);
-            str2 = str2.replacingOccurrences(of: "/brands", with: "https://japanmotor.kz/statistika-aukczionov/brands")
-            
-            // $str2 = str_replace('href="/lots','class="',$str2);
-            str2 = str2.replacingOccurrences(of: "href=\"/lots", with: "class=\"")
-            
-            // $str2 = str_replace('src="/_img/thumb/','tabindex="0" src="https://motobay.su/_img/thumb/',$str2);
-            str2 = str2.replacingOccurrences(of: "src=\"/_img/thumb/", with: "tabindex=\"0\" src=\"https://motobay.su/_img/thumb/")
-            
-            // $str2 = str_replace('small.jpg','large.jpg',$str2);
-            str2 = str2.replacingOccurrences(of: "small.jpg", with: "large.jpg")
-            
-            // $str2 = str_replace('?page=','?page_lots=',$str2);
-            str2 = str2.replacingOccurrences(of: "?page=", with: "?page_lots=")
-            
-            // Headers replacement
-            str2 = str2.replacingOccurrences(of: "<span>Цена в Вл-ке</span><span>Цена в Москве</span><span>DDP New Zealand</span>", with: "<span>Цена в Казахстане</span>")
-            
-            // Price Calculation Logic
-            // PHP loops through finding <div class="mb-tooltip" data-key="price" ...>
-            // Extracts value, cleans "р.", converts to int, applies rate.
-            
-            str2 = processPrices(in: str2, rate: rate)
-            
-        } else {
-            // Fallback logic from PHP (if no table/lots found)
-            // ... omitting complex fallback for simplicity unless requested
-             str2 = "Content not found or parser mismatch"
-        }
-        
-        return str2
+        } catch { return [] }
     }
     
-    private func processPrices(in text: String, rate: Double) -> String {
-        var processedText = text
-        // Need to find all occurrences of prices and replace them.
-        
-        // PHP pattern: <div class="mb-tooltip" data-key="price" data-toggle="popover"><span>
-        let marker = "<div class=\"mb-tooltip\" data-key=\"price\" data-toggle=\"popover\"><span>"
-        
-        // We will scan the string
-        var searchRange = processedText.startIndex..<processedText.endIndex
-        
-        while let foundRange = processedText.range(of: marker, range: searchRange) {
-            // Start of price is after marker
-            let priceStart = foundRange.upperBound
-            
-            // Search for end of price info: <span class="info">*</span>
-            if let endRange = processedText.range(of: "<span class=\"info\">*</span>", range: priceStart..<processedText.endIndex) {
-                 let priceExactRange = priceStart..<endRange.lowerBound
-                 let priceStringWithGarbage = String(processedText[priceExactRange])
-                 
-                 // Clean price string: 1 200 000 р. -> 1200000
-                 let cleanPriceString = priceStringWithGarbage.replacingOccurrences(of: " ", with: "").replacingOccurrences(of: "р.", with: "")
-                 
-                 if let rubValue = Double(cleanPriceString) {
-                     // Convert
-                     let tengeValue = Int(rubValue * rate)
-                     // Format: spaces (e.g. 1 000 000)
-                     let formatter = NumberFormatter()
-                     formatter.numberStyle = .decimal
-                     formatter.groupingSeparator = " "
-                     let formattedTenge = formatter.string(from: NSNumber(value: tengeValue)) ?? "\(tengeValue)"
-                     
-                     // Perform replacement in the ORIGINAL string
-                     // Note: PHP replaces the WHOLE occurrence of the price string (rub) with tenge string.
-                     // But strictly speaking it iterates and replaces specific matches.
-                     
-                     // Construct replacement:
-                     let kztString = "\(formattedTenge) ₸"
-                     
-                     // We replace the content between marker and end marker?
-                     // The PHP code does: $str2 = str_replace($mass_cena[$i],$mass_tenge[$i],$str2);
-                     // It replaces the string "100 000 р." with "500 000 ₸" GLOBALLY.
-                     // This is risky if two lots have same price logic, but efficient.
-                     
-                     processedText = processedText.replacingOccurrences(of: priceStringWithGarbage, with: kztString)
-                 }
-                 
-                 // Update search range
-                 searchRange = endRange.upperBound..<processedText.endIndex
-            } else {
-                break
-            }
-        }
-        
-        return processedText
+    private func firstMatch(for regex: String, in text: String) -> [String]? {
+        return matches(for: regex, in: text).first
     }
+}
+
+// MARK: - Currency Parser Delegate
+private final class CurrencyParserDelegate: NSObject, XMLParserDelegate, @unchecked Sendable {
+    var rubToKztRate: Double = 5.0
+    private var foundRUB = false
+    private var nominal: Double = 1.0
+    private var tempValue = ""
     
-    // MARK: - XMLParserDelegate
     func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName qName: String?, attributes attributeDict: [String : String] = [:]) {
-        currentElement = elementName
-        if elementName == "Valute" {
-            if let id = attributeDict["ID"], id == "R01335" {
-                foundRUB = true
-            } else {
-                foundRUB = false
-            }
-        }
+        if elementName == "Valute" { foundRUB = (attributeDict["ID"] == "R01335") }
         tempValue = ""
     }
     
     func parser(_ parser: XMLParser, foundCharacters string: String) {
-        if foundRUB {
-            tempValue += string
-        }
+        if foundRUB { tempValue += string }
     }
     
     func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName qName: String?) {
         if foundRUB {
             if elementName == "Value" {
                 let valStr = tempValue.replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespacesAndNewlines)
-                if let val = Double(valStr) {
-                    // PHP: $tenge = round(($item->Nominal)/$tenge_val,2);
-                     self.tengeRate = self.nominal / val
-                }
+                if let val = Double(valStr), val > 0 { self.rubToKztRate = self.nominal / val }
             } else if elementName == "Nominal" {
-                 if let nom = Double(tempValue.trimmingCharacters(in: .whitespacesAndNewlines)) {
-                     self.nominal = nom
-                 }
+                if let nom = Double(tempValue.trimmingCharacters(in: .whitespacesAndNewlines)) { self.nominal = nom }
             }
         }
+        if elementName == "Valute" && foundRUB { foundRUB = false }
     }
 }

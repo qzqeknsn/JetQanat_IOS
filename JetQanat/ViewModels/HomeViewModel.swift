@@ -37,18 +37,37 @@ class HomeViewModel: ObservableObject {
     func fetchBikes() {
         isLoadingBikes = true
         
-        NetworkService.shared.fetchMotorcycles()
-            .sink { [weak self] completion in
-                self?.isLoadingBikes = false
-                if case .failure(let error) = completion {
-                    print("Error fetching bikes: \(error)")
-                    
+        // Use BrandManager for consistent popular bikes on Home screen too (Real Data)
+        let urls = BrandManager.shared.demoUrls.shuffled() // Shuffle for variety on home too
+        let group = DispatchGroup()
+        var allBikes: [Bike] = []
+        
+        // Fetch fewer sources for Home to keep it quick
+        let targetUrls = Array(urls.prefix(8))
+        
+        for url in targetUrls {
+            group.enter()
+            DispatchQueue.global(qos: .userInitiated).async {
+                AuctionParser.shared.fetchBikes(url: url) { result in
+                    defer { group.leave() }
+                    switch result {
+                    case .success(let bikes):
+                        // Take top 3 from each
+                        let topBikes = Array(bikes.prefix(3))
+                        DispatchQueue.main.async {
+                            allBikes.append(contentsOf: topBikes)
+                        }
+                    case .failure(let error):
+                        print("HomeViewModel: Error fetching \(url): \(error)")
+                    }
                 }
-            } receiveValue: { [weak self] bikes in
-                self?.bikes = bikes
-                print("Loadded \(bikes.count) bikes from API")
             }
-            .store(in: &viewCancellables)
+        }
+        
+        group.notify(queue: .main) { [weak self] in
+            self?.isLoadingBikes = false
+            self?.bikes = allBikes.shuffled()
+        }
     }
     
     func loadQuickStats() {

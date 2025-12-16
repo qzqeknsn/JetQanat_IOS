@@ -52,10 +52,46 @@ class MarketplaceViewModel: ObservableObject {
     
     func fetchProducts() {
         isLoading = true
+        self.products = [] // Clear existing
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+        // 1. Shuffle URLs to ensure we get a random mix of Brands/Models (Honda, Yamaha, BMW, etc.) immediately
+        // 2. Limit to top 2 bikes per model to prevent one model (e.g. CB1000R) from dominating the feed
+        let urls = BrandManager.shared.demoUrls.shuffled()
+        
+        print("MarketplaceViewModel: Starting concurrent fetch for \(urls.count) sources...")
+        
+        let group = DispatchGroup()
+        
+        for url in urls {
+            group.enter()
+            DispatchQueue.global(qos: .userInitiated).async {
+                AuctionParser.shared.fetchBikes(url: url) { [weak self] result in
+                    defer { group.leave() }
+                    
+                    switch result {
+                    case .success(let bikes):
+                        guard let self = self else { return }
+                        
+                        // Limit to 2 bikes per model -> Maximum variety in the feed
+                        let newProducts = bikes.prefix(2).map { bike -> Product in
+                            return bike.toProduct()
+                        }
+                        
+                        DispatchQueue.main.async {
+                            // Append new items to existing list to show progress
+                            self.products.append(contentsOf: newProducts)
+                        }
+                        
+                    case .failure(let error):
+                        print("Error fetching \(url): \(error)")
+                    }
+                }
+            }
+        }
+        
+        group.notify(queue: .main) {
             self.isLoading = false
-            self.loadMockBikes()
+            print("MarketplaceViewModel: Finished loading. Total count: \(self.products.count)")
         }
     }
     

@@ -25,13 +25,13 @@ class HomeViewController: UIViewController {
     ]
     
     private let brandItems: [(name: String, icon: String)] = [
-        ("Yamaha", "y.circle.fill"),
-        ("Honda", "h.circle.fill"),
-        ("Kawasaki", "k.circle.fill"),
-        ("Suzuki", "s.circle.fill"),
-        ("BMW", "b.circle.fill"),
-        ("Ducati", "d.circle.fill"),
-        ("Harley", "h.circle.fill"),
+        ("Yamaha", "Yamaha"),
+        ("Honda", "Honda"),
+        ("Kawasaki", "Kawasaki"),
+        ("Suzuki", "Suzuki"),
+        ("BMW", "BMW"),
+        ("Ducati", "Ducati.svg"),
+        ("Harley", "Harley"),
         ("More", "ellipsis.circle.fill")
     ]
     
@@ -74,23 +74,6 @@ class HomeViewController: UIViewController {
     }
 
 
-    // ... (rest of setupUI/setupCollectionView unchanged)
-    
-    // Inside cellForItemAt for BikeCardCell:
-    /*
-        case 3:
-            let cell = collectionView.dequeueReusableCell(withReuseIdentifier: BikeCardCell.reuseIdentifier, for: indexPath) as! BikeCardCell
-            let bike = viewModel.bikes[indexPath.row]
-            let isFavorite = wishlistViewModel.isInWishlist(bikeId: bike.id)
-            
-            cell.configure(with: bike, isFavorite: isFavorite)
-            
-            cell.onWishlistTap = { [weak self] in
-                self?.wishlistViewModel.toggleWishlist(bikeId: bike.id)
-            }
-            return cell
-    */
-    
     // MARK: - Setup
     
     private func setupUI() {
@@ -161,7 +144,7 @@ class HomeViewController: UIViewController {
         return UICollectionViewCompositionalLayout { (sectionIndex, layoutEnvironment) -> NSCollectionLayoutSection? in
             
             switch sectionIndex {
-            case 0: // Hero
+            case 0:
                 let itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1.0), heightDimension: .fractionalHeight(1.0))
                 let item = NSCollectionLayoutItem(layoutSize: itemSize)
                 
@@ -173,14 +156,14 @@ class HomeViewController: UIViewController {
                 section.interGroupSpacing = 16
                 section.contentInsets = NSDirectionalEdgeInsets(top: 16, leading: 0, bottom: 24, trailing: 0)
                 
-                // Header (Example "Featured")
+                
                 let headerSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1.0), heightDimension: .absolute(44))
                 let header = NSCollectionLayoutBoundarySupplementaryItem(layoutSize: headerSize, elementKind: UICollectionView.elementKindSectionHeader, alignment: .top)
                 section.boundarySupplementaryItems = [header]
                 
                 return section
                 
-            case 1: // Brands (2 rows grid)
+            case 1: 
                 let itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(0.25), heightDimension: .absolute(90))
                 let item = NSCollectionLayoutItem(layoutSize: itemSize)
                 
@@ -192,6 +175,7 @@ class HomeViewController: UIViewController {
                 section.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 16, bottom: 24, trailing: 16)
                 
                 return section
+                
                 
             case 2: // Filters
                 let itemSize = NSCollectionLayoutSize(widthDimension: .estimated(80), heightDimension: .absolute(40))

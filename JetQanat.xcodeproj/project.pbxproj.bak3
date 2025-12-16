@@ -8,10 +8,12 @@
 
 /* Begin PBXBuildFile section */
 		0783B1DF2EF129850015BA95 /* SnapKit in Frameworks */ = {isa = PBXBuildFile; productRef = 0783AF992EF036370015BA99 /* SnapKit */; };
+		3193C70D2EF0917E009F0E01 /* asda.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3193C70C2EF0917E009F0E01 /* asda.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		0783AF2F2EF031EF0015BA95 /* JetQanat.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JetQanat.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		3193C70C2EF0917E009F0E01 /* asda.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = asda.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -52,6 +54,7 @@
 			children = (
 				0783AF312EF031EF0015BA95 /* JetQanat */,
 				0783AF302EF031EF0015BA95 /* Products */,
+				3193C70C2EF0917E009F0E01 /* asda.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -96,6 +99,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2600;
 				LastUpgradeCheck = 2600;
 				TargetAttributes = {
 					0783AF2E2EF031EF0015BA95 = {
@@ -140,6 +144,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3193C70D2EF0917E009F0E01 /* asda.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

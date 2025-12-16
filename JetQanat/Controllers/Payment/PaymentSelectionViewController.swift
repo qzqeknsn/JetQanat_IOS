@@ -1,3 +1,10 @@
+//
+//  PaymentSelectionViewController.swift
+//  JetQanat
+//
+//  Created by Amangeldin Yersultan on 15.12.2025.
+//
+
 import UIKit
 import SnapKit
 
@@ -68,7 +75,7 @@ class PaymentSelectionViewController: UIViewController {
     private func setupUI() {
         view.backgroundColor = UIColor.black.withAlphaComponent(0.5)
         
-        
+        // Tap to dismiss on background
         let tap = UITapGestureRecognizer(target: self, action: #selector(didTapClose))
         view.addGestureRecognizer(tap)
         

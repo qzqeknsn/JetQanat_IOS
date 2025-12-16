@@ -1,10 +1,3 @@
-//
-//  MainTabBarController.swift
-//  JetQanat
-//
-//  Created by Zholdibay Abylay on 15.12.2025.
-//
-
 import UIKit
 import SnapKit
 
@@ -21,11 +14,11 @@ class MainTabBarController: UITabBarController {
     private func configureTabBar() {
         let appearance = UITabBarAppearance()
         appearance.configureWithOpaqueBackground()
-        appearance.backgroundColor = UIColor(red: 28/255, green: 28/255, blue: 35/255, alpha: 1.0)
+        appearance.backgroundColor = UIColor(red: 28/255, green: 28/255, blue: 35/255, alpha: 1.0) // #1C1C23
         
         tabBar.standardAppearance = appearance
         tabBar.scrollEdgeAppearance = appearance
-        tabBar.tintColor = .systemRed
+        tabBar.tintColor = .systemRed // Theme.Colors.primary approximation
         tabBar.unselectedItemTintColor = .gray
     }
 

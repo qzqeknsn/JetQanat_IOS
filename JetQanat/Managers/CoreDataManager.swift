@@ -21,7 +21,7 @@ class CoreDataManager {
         
         container.loadPersistentStores(completionHandler: { (storeDescription, error) in
             if let url = storeDescription.url {
-                 print("📂 Core Data Database File: \(url.absoluteString)")
+                 print("Core Data Database File: \(url.absoluteString)")
             }
             
             if let error = error as NSError? {

@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		0783B1DF2EF129850015BA95 /* SnapKit in Frameworks */ = {isa = PBXBuildFile; productRef = 0783AF992EF036370015BA99 /* SnapKit */; };
 		3193C70D2EF0917E009F0E01 /* asda.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3193C70C2EF0917E009F0E01 /* asda.swift */; };
 /* End PBXBuildFile section */
 
@@ -23,6 +22,8 @@
 				Controllers/Payment/Untitled.swift,
 				Info.plist,
 				Models/Untitled.swift,
+				"ViewModels/Untitled 2.swift",
+				ViewModels/Untitled.swift,
 			);
 			target = 0783AF2E2EF031EF0015BA95 /* JetQanat */;
 		};
@@ -44,7 +45,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				0783B1DF2EF129850015BA95 /* SnapKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -88,7 +88,6 @@
 			);
 			name = JetQanat;
 			packageProductDependencies = (
-				0783AF992EF036370015BA99 /* SnapKit */,
 			);
 			productName = JetQanat;
 			productReference = 0783AF2F2EF031EF0015BA95 /* JetQanat.app */;
@@ -164,7 +163,7 @@
 				INFOPLIST_FILE = JetQanat/Info.plist;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
-
+				INFOPLIST_KEY_UIMainStoryboardFile = Main;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -195,7 +194,7 @@
 				INFOPLIST_FILE = JetQanat/Info.plist;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
-
+				INFOPLIST_KEY_UIMainStoryboardFile = Main;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -367,14 +366,6 @@
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		0783AF992EF036370015BA99 /* SnapKit */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 0783AF8F2EF036370015BA95 /* XCRemoteSwiftPackageReference "SnapKit" */;
-			productName = SnapKit;
-		};
-/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 0783AF272EF031EF0015BA95 /* Project object */;
 }

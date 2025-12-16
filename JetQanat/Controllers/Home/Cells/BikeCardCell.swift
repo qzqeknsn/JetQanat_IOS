@@ -198,11 +198,8 @@ class BikeCardCell: UICollectionViewCell {
         priceLabel.text = bike.formattedPrice
         ratingLabel.text = "4.8 (12)"
         
-        if let image = UIImage(named: bike.image_url) {
-            imageView.image = image
-        } else {
-            imageView.backgroundColor = .darkGray
-        }
+        // Efficiently load remote or local image
+        imageView.loadImage(from: bike.image_url)
     }
     
     // Support for RentalBike

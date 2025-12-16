@@ -58,7 +58,7 @@ class MarketplaceViewModel: ObservableObject {
         
         print("MarketplaceViewModel: Starting concurrent fetch for \(urls.count) sources...")
         
-        let group = DispatchGroup()
+        print("MarketplaceViewModel: Starting Async Deep Fetch...")
         
         for url in urls {
             group.enter()
@@ -77,17 +77,18 @@ class MarketplaceViewModel: ObservableObject {
                         DispatchQueue.main.async {
                             self.products.append(contentsOf: newProducts)
                         }
-                        
-                    case .failure(let error):
-                        print("Error fetching \(url): \(error)")
                     }
                 }
+                
+                await MainActor.run {
+                    self.isLoading = false
+                    print("MarketplaceViewModel: Finished loading. Total: \(self.products.count)")
+                }
+                
+            } catch {
+                print("MarketplaceViewModel: Critical Error: \(error)")
+                await MainActor.run { self.isLoading = false }
             }
-        }
-        
-        group.notify(queue: .main) {
-            self.isLoading = false
-            print("MarketplaceViewModel: Finished loading. Total count: \(self.products.count)")
         }
     }
     

@@ -291,13 +291,34 @@ class BikeDetailViewController: UIViewController {
         titleLabel.text = bike.name
         priceLabel.text = bike.formattedPrice
         
-        if let image = UIImage(named: bike.image_url) {
+        // Load image (check if remote URL or local asset)
+        if bike.image_url.starts(with: "http") {
+             heroImageView.loadImage(from: bike.image_url)
+        } else if let image = UIImage(named: bike.image_url) {
             heroImageView.image = image
+        } else {
+             // Fallback
+             heroImageView.image = UIImage(systemName: "motorcycle.fill")
+             heroImageView.tintColor = .darkGray
         }
         
+        // Rich Description
+        let brandDesc = BrandManager.shared.getDescription(for: bike.name)
+        let auctionInfo = bike.auction != nil ? "This unit was inspected at \(bike.auction ?? "Japanese") auction." : "Imported directly from Japan."
+        let conditionInfo = (bike.rating?.first?.wholeNumberValue ?? 0) >= 4 ? "It is in excellent condition with a high rating." : "It is a well-maintained vehicle seeking a new owner."
         
-        descriptionLabel.text = "Experience the thrill of the open road with the \(bike.name). Built for performance, this machine features state-of-the-art aerodynamics and a high-performance engine. Whether you're on the track or the street, it delivers unmatched power and control."
+        descriptionLabel.text = """
+        \(brandDesc)
         
+        \(auctionInfo) \(conditionInfo)
+        
+        Detailed Specification:
+        • Year: \(bike.year ?? "N/A")
+        • Mileage: \(bike.mileage ?? "N/A") km
+        • Frame No: \(bike.frame ?? "N/A")
+        • Engine: \(bike.engineVolume ?? "N/A") cc
+        • Auction Grade: \(bike.rating ?? "N/A")
+        """
         
         configureSpecs()
     }
@@ -305,14 +326,28 @@ class BikeDetailViewController: UIViewController {
     private func configureSpecs() {
         specsStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
         
+        // 1. Year / Age
+        let yearVal = bike.year ?? "N/A"
+        let spec1 = createSpecBox(title: "Year", value: yearVal, icon: "calendar")
         
-        let spec1 = createSpecBox(title: "Engine", value: "998 cc", icon: "bolt.fill")
-        let spec2 = createSpecBox(title: "Power", value: "200 hp", icon: "gauge")
-        let spec3 = createSpecBox(title: "Weight", value: "200 kg", icon: "scalemass.fill")
+        // 2. Mileage
+        let mileageVal = bike.mileage != nil ? "\(bike.mileage!)" : "N/A"
+        let spec2 = createSpecBox(title: "Mileage", value: mileageVal, icon: "road.lanes")
+        
+        // 3. Engine / Volume
+        let engineVal = bike.engineVolume != nil ? "\(bike.engineVolume!)cc" : "N/A"
+        let spec3 = createSpecBox(title: "Engine", value: engineVal, icon: "bolt.fill")
+        
+        // 4. Rating (if available, otherwise Frame)
+        let ratingVal = bike.rating ?? (bike.frame ?? "N/A")
+        let title4 = bike.rating != nil ? "Rating" : "Frame"
+        let icon4 = bike.rating != nil ? "star.fill" : "number.square"
+        let spec4 = createSpecBox(title: title4, value: ratingVal, icon: icon4)
         
         specsStack.addArrangedSubview(spec1)
         specsStack.addArrangedSubview(spec2)
         specsStack.addArrangedSubview(spec3)
+        specsStack.addArrangedSubview(spec4)
     }
     
     

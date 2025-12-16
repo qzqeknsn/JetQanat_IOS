@@ -52,46 +52,78 @@ class MarketplaceViewModel: ObservableObject {
     
     func fetchProducts() {
         isLoading = true
-        self.products = [] // Clear existing
+        self.products = []
         
-        // 1. Shuffle URLs to ensure we get a random mix of Brands/Models (Honda, Yamaha, BMW, etc.) immediately
-        // 2. Limit to top 2 bikes per model to prevent one model (e.g. CB1000R) from dominating the feed
-        let urls = BrandManager.shared.demoUrls.shuffled()
+        let targets: [(id: Int, name: String)] = [
+            (2, "Honda"),
+            (1, "Yamaha"),
+            (3, "Suzuki"),
+            (4, "Kawasaki"),
+            (13, "BMW"),
+            (7, "Ducati")
+        ]
         
-        print("MarketplaceViewModel: Starting concurrent fetch for \(urls.count) sources...")
+        print("MarketplaceViewModel: Starting Async Deep Fetch...")
         
-        let group = DispatchGroup()
-        
-        for url in urls {
-            group.enter()
-            DispatchQueue.global(qos: .userInitiated).async {
-                AuctionParser.shared.fetchBikes(url: url) { [weak self] result in
-                    defer { group.leave() }
-                    
-                    switch result {
-                    case .success(let bikes):
-                        guard let self = self else { return }
-                        
-                        // Limit to 2 bikes per model -> Maximum variety in the feed
-                        let newProducts = bikes.prefix(2).map { bike -> Product in
-                            return bike.toProduct()
+        Task {
+            do {
+                // Use a ThrowingTaskGroup to fetch models for all brands in parallel
+                await withTaskGroup(of: Void.self) { group in
+                    for target in targets {
+                        group.addTask {
+                            do {
+                                // 1. Fetch Models
+                                let brand = Brand(id: target.id, name: target.name, url: "https://motobay.su/brands/\(target.id)")
+                                // The new parser is an actor, so we await calls
+                                let models = try await AuctionParser.shared.fetchModels(for: brand, limit: 12)
+                                
+                                // 2. Fetch Bikes for top 10 models
+                                let topModels = models.prefix(10)
+                                
+                                for model in topModels {
+                                    do {
+                                        let bikes = try await AuctionParser.shared.fetchBikes(url: model.url)
+                                        
+                                        // 3. Find best bike with image
+                                        let bestBike = bikes.first(where: {
+                                            !$0.image_url.isEmpty &&
+                                            !$0.image_url.contains("nophoto") &&
+                                            $0.image_url.count > 5
+                                        }) ?? bikes.first
+                                        
+                                        if var bike = bestBike {
+                                            // 4. Fix Title
+                                            if !bike.name.lowercased().contains(target.name.lowercased()) {
+                                                bike.name = "\(target.name) \(bike.name)"
+                                            }
+                                            
+                                            // Update UI on Main Actor
+                                            await MainActor.run {
+                                                // Move toProduct here to satisfy MainActor isolation
+                                                let product = bike.toProduct()
+                                                self.products.append(product)
+                                            }
+                                        }
+                                    } catch {
+                                        print("Failed to fetch bike for model \(model.name): \(error)")
+                                    }
+                                }
+                            } catch {
+                                print("Failed to fetch models for \(target.name): \(error)")
+                            }
                         }
-                        
-                        DispatchQueue.main.async {
-                            // Append new items to existing list to show progress
-                            self.products.append(contentsOf: newProducts)
-                        }
-                        
-                    case .failure(let error):
-                        print("Error fetching \(url): \(error)")
                     }
                 }
+                
+                await MainActor.run {
+                    self.isLoading = false
+                    print("MarketplaceViewModel: Finished loading. Total: \(self.products.count)")
+                }
+                
+            } catch {
+                print("MarketplaceViewModel: Critical Error: \(error)")
+                await MainActor.run { self.isLoading = false }
             }
-        }
-        
-        group.notify(queue: .main) {
-            self.isLoading = false
-            print("MarketplaceViewModel: Finished loading. Total count: \(self.products.count)")
         }
     }
     

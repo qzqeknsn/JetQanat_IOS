@@ -177,25 +177,12 @@ class LoginViewController: UIViewController {
     
     private func handleLoginSuccess() {
         // Navigate or dismiss
-         if let sceneDelegate = self.view.window?.windowScene?.delegate as? SceneDelegate {
-             // Let SceneDelegate handle root switch if implemented, or just dismiss/push
-             // For now, let's assume parent/delegate handles it or we dismiss.
-             // But actually, WelcomeVC presented this.
-         }
-         // Actually, WelcomeVC pushes invalidly? usually root swap.
-         // Let's stick to what we have or just rely on existing flow if any?
-         // The AuthenticationViewModel usually drives the flow via SceneDelegate observing it.
-         // But here we are in a simple flow.
-         // Let's just leave success handling to the parent/observer of ViewModel usually, 
-         // BUT wait, AuthenticationViewModel IS observed by SceneDelegate usually in SwiftUI but here it is UIKit.
-         // We need to dismiss or swap root.
-         
-         // Assuming SceneDelegate observes `isAuthenticated` and swaps root?
-         // If not, we should probably manually swap root here:
+        // Navigate to main screen
+
          
          if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
             let window = windowScene.windows.first {
-             window.rootViewController = MainTabBarController() 
+             window.rootViewController = navigationController
              window.makeKeyAndVisible()
              UIView.transition(with: window, duration: 0.3, options: .transitionCrossDissolve, animations: nil)
          }

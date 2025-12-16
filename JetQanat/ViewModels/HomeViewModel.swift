@@ -37,36 +37,45 @@ class HomeViewModel: ObservableObject {
     func fetchBikes() {
         isLoadingBikes = true
         
-        // Use BrandManager for consistent popular bikes on Home screen too (Real Data)
-        let urls = BrandManager.shared.demoUrls.shuffled() // Shuffle for variety on home too
-        let group = DispatchGroup()
-        var allBikes: [Bike] = []
-        
+        let urls = BrandManager.shared.demoUrls.shuffled()
         // Fetch fewer sources for Home to keep it quick
         let targetUrls = Array(urls.prefix(8))
         
-        for url in targetUrls {
-            group.enter()
-            DispatchQueue.global(qos: .userInitiated).async {
-                AuctionParser.shared.fetchBikes(url: url) { result in
-                    defer { group.leave() }
-                    switch result {
-                    case .success(let bikes):
-                        // Take top 3 from each
-                        let topBikes = Array(bikes.prefix(3))
-                        DispatchQueue.main.async {
-                            allBikes.append(contentsOf: topBikes)
+        Task {
+            do {
+                // Use a ThrowingTaskGroup to fetch concurrently
+                var fetchedBikes: [Bike] = []
+                
+                await withTaskGroup(of: [Bike].self) { group in
+                    for url in targetUrls {
+                        group.addTask {
+                            do {
+                                // Calls the new async fetchBikes
+                                let bikes = try await AuctionParser.shared.fetchBikes(url: url)
+                                return Array(bikes.prefix(3)) // Take top 3
+                            } catch {
+                                print("HomeViewModel: Error fetching \(url): \(error)")
+                                return [] 
+                            }
                         }
-                    case .failure(let error):
-                        print("HomeViewModel: Error fetching \(url): \(error)")
+                    }
+                    
+                    // Collect results
+                    for await bikes in group {
+                        fetchedBikes.append(contentsOf: bikes)
                     }
                 }
+                
+                // Update UI on MainActor
+                await MainActor.run {
+                    self.isLoadingBikes = false
+                    self.bikes = fetchedBikes.shuffled()
+                }
+                
+            } catch {
+                print("HomeViewModel: Critical error: \(error)")
+                await MainActor.run { self.isLoadingBikes = false }
             }
-        }
-        
-        group.notify(queue: .main) { [weak self] in
-            self?.isLoadingBikes = false
-            self?.bikes = allBikes.shuffled()
         }
     }
     

@@ -1,8 +1,8 @@
-
 import Foundation
 import UIKit
 
 // MARK: - Models
+// (Структуры Brand и BrandModel остаются без изменений)
 
 struct Brand: Identifiable, Codable {
     let id: Int
@@ -16,97 +16,121 @@ struct BrandModel: Identifiable, Codable {
     let url: String
 }
 
-class AuctionParser {
+// Предполагаем, что struct Bike у вас есть где-то еще, 
+// так как в исходном коде его определения не было, но он использовался.
+
+/// Используем `actor` вместо `class singleton` для потокобезопасности
+actor AuctionParser {
     
     static let shared = AuctionParser()
     private init() {}
     
-    // MARK: - API
+    // Создаем сессию с таймаутом один раз
+    private lazy var session: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 60
+        return URLSession(configuration: config)
+    }()
+    
+    // MARK: - API (Async)
     
     /// Fetches all brands from the main page
-    func fetchBrands(completion: @escaping (Result<[Brand], Error>) -> Void) {
+    func fetchBrands() async throws -> [Brand] {
         let url = "https://motobay.su/brands"
-        fetchHTML(url: url) { [weak self] result in
-            switch result {
-            case .success(let html):
-                let brands = self?.parseBrands(from: html) ?? []
-                completion(.success(brands))
-            case .failure(let error):
-                completion(.failure(error))
-            }
-        }
+        let html = try await fetchHTML(url: url)
+        
+        // Парсинг переносим в отдельную задачу, чтобы не блокировать актор
+        return await Task.detached(priority: .userInitiated) {
+            return self.parseBrands(from: html)
+        }.value
     }
     
     /// Fetches models for a given brand
-    func fetchModels(for brand: Brand, limit: Int = 10, completion: @escaping (Result<[BrandModel], Error>) -> Void) {
-        fetchHTML(url: brand.url) { [weak self] result in
-            switch result {
-            case .success(let html):
-                var models = self?.parseModels(from: html) ?? []
-                if limit > 0 {
-                    models = Array(models.prefix(limit))
-                }
-                completion(.success(models))
-            case .failure(let error):
-                completion(.failure(error))
+    func fetchModels(for brand: Brand, limit: Int = 10) async throws -> [BrandModel] {
+        let html = try await fetchHTML(url: brand.url)
+        
+        return await Task.detached(priority: .userInitiated) {
+            var models = self.parseModels(from: html)
+            if limit > 0 {
+                models = Array(models.prefix(limit))
             }
-        }
+            return models
+        }.value
     }
     
     /// Fetches bikes for a specific model URL
-    func fetchBikes(url: String, completion: @escaping (Result<[Bike], Error>) -> Void) {
-        // Bypass CBR.ru due to SSL errors (-1200)
-        // Use a fixed rate for stability (Approx 5.0 KZT per RUB)
+    func fetchBikes(url: String) async throws -> [Bike] {
+        // Стабильный курс, как у вас в коде
         let rate = 5.0
         
-        self.fetchHTML(url: url) { [weak self] result in
-            guard let self = self else { return }
-            switch result {
-            case .success(let html):
-                let bikes = self.parseBikes(from: html, rate: rate)
-                completion(.success(bikes))
-            case .failure(let error):
-                completion(.failure(error))
-            }
-        }
+        let html = try await fetchHTML(url: url)
+        
+        return await Task.detached(priority: .userInitiated) {
+            return self.parseBikes(from: html, rate: rate)
+        }.value
     }
     
-    // MARK: - Parsing Logic
+    // MARK: - Networking
     
-    private func parseBrands(from html: String) -> [Brand] {
+    private func fetchHTML(url: String) async throws -> String {
+        guard let urlObj = URL(string: url) else {
+            throw URLError(.badURL)
+        }
+        
+        // Используем современный async метод URLSession
+        let (data, response) = try await session.data(from: urlObj)
+        
+        guard let httpResponse = response as? HTTPURLResponse, 
+              (200...299).contains(httpResponse.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        
+        guard let str = String(data: data, encoding: .utf8) else {
+            throw URLError(.cannotDecodeContentData)
+        }
+        
+        return str
+    }
+    
+    // MARK: - Parsing Logic (Non-isolated to run in detached tasks)
+    
+    // nonisolated позволяет вызывать эти методы из Task.detached без перехода обратно в актор
+    private nonisolated func parseBrands(from html: String) -> [Brand] {
         var brands: [Brand] = []
         let pattern = "<li><a href=\"/brands/(\\d+)\">([^<]+)</a></li>"
         let matches = self.matches(for: pattern, in: html)
         
         for match in matches {
-            let id = Int(match[1]) ?? 0
-            let name = match[2].trimmingCharacters(in: .whitespacesAndNewlines)
-            let url = "https://motobay.su/brands/\(id)"
-            if id > 0 {
-                brands.append(Brand(id: id, name: name, url: url))
+            if let id = Int(match[1]) {
+                let name = match[2].trimmingCharacters(in: .whitespacesAndNewlines)
+                let url = "https://motobay.su/brands/\(id)"
+                if id > 0 {
+                    brands.append(Brand(id: id, name: name, url: url))
+                }
             }
         }
         return brands
     }
     
-    private func parseModels(from html: String) -> [BrandModel] {
+    private nonisolated func parseModels(from html: String) -> [BrandModel] {
         var models: [BrandModel] = []
         let pattern = "<a href=\"(/brands/\\d+/models/(\\d+))\">([^<]+)</a>"
         let matches = self.matches(for: pattern, in: html)
         
         for match in matches {
             let relativeUrl = match[1]
-            let id = Int(match[2]) ?? 0
-            let name = match[3].trimmingCharacters(in: .whitespacesAndNewlines)
-            let url = "https://motobay.su" + relativeUrl
-            if id > 0 {
-                models.append(BrandModel(id: id, name: name, url: url))
+            if let id = Int(match[2]) {
+                let name = match[3].trimmingCharacters(in: .whitespacesAndNewlines)
+                let url = "https://motobay.su" + relativeUrl
+                if id > 0 {
+                    models.append(BrandModel(id: id, name: name, url: url))
+                }
             }
         }
         return models
     }
     
-    private func parseBikes(from html: String, rate: Double) -> [Bike] {
+    private nonisolated func parseBikes(from html: String, rate: Double) -> [Bike] {
         var bikes: [Bike] = []
         
         let rowPattern = "<tr[^>]*data-id=\"(\\d+)\"[^>]*>(.*?)</tr>"
@@ -138,20 +162,26 @@ class AuctionParser {
             let auction = extract(pattern: "<span class=\"area\">([^<]+)</span>")
             let date = extract(pattern: "<span class=\"date\">([^<]+)</span>")
             
+            // Regex improvements for parsing fields that might have attributes or whitespace
+            
             var year: String?
-            if let yearMatch = firstMatch(for: "<td>(\\d{4})</td>", in: content) { year = yearMatch[1] }
+            // Match <td>YYYY</td> with optional attributes and whitespace
+            if let yearMatch = firstMatch(for: "<td[^>]*>\\s*(\\d{4})\\s*</td>", in: content) { 
+                year = yearMatch[1] 
+            }
             
             var engineVolume: String?
-            if let engineMatch = firstMatch(for: "<td>(\\d{3,4})</td>", in: content) {
+            // Match 3-4 digits that isn't the year
+            if let engineMatch = firstMatch(for: "<td[^>]*>\\s*(\\d{3,4})\\s*</td>", in: content) {
                 if engineMatch[1] != year { engineVolume = engineMatch[1] }
             }
             
-            let frame = extract(pattern: "<span class=\"chassis_n\">([^<]+)</span>")
-            let mileage = extract(pattern: "class=\"mileage\">([^<]+)</td>")
-            let rating = extract(pattern: "class=\"score\">([^<]+)</td>")
+            let frame = extract(pattern: "class=\"chassis_n\"[^>]*>([^<]+)</span>")
+            let mileage = extract(pattern: "class=\"mileage\"[^>]*>([^<]+)</td>")
+            let rating = extract(pattern: "class=\"score\"[^>]*>([^<]+)</td>")
             
             var status: String?
-            if let statusMatch = firstMatch(for: "<td>(SOLD|Unsold|Available)</td>", in: content) { status = statusMatch[1] }
+            if let statusMatch = firstMatch(for: "<td[^>]*>\\s*(SOLD|Unsold|Available)\\s*</td>", in: content) { status = statusMatch[1] }
             
             var price = 0
             if let priceMatch = firstMatch(for: "<span>([\\d\\s]+) р\\.", in: content) {
@@ -170,6 +200,7 @@ class AuctionParser {
             
             let convertedPrice = Int(Double(price) * rate)
             
+            // ВАЖНО: Убедитесь, что struct Bike инициализируется верно
             var bike = Bike(
                 id: Int(id) ?? 0,
                 name: title,
@@ -196,50 +227,9 @@ class AuctionParser {
         return bikes
     }
     
-    // MARK: - Networking
-    
-    private func fetchHTML(url: String, completion: @escaping (Result<String, Error>) -> Void) {
-        guard let urlObj = URL(string: url) else {
-            completion(.failure(NSError(domain: "Invalid URL", code: 0)))
-            return
-        }
-        
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30
-        let session = URLSession(configuration: config)
-        
-        session.dataTask(with: urlObj) { data, _, error in
-            if let error = error { completion(.failure(error)); return }
-            guard let data = data, let str = String(data: data, encoding: .utf8) else {
-                completion(.failure(NSError(domain: "No Data", code: 0)))
-                return
-            }
-            completion(.success(str))
-        }.resume()
-    }
-    
-    private func fetchCurrencyRate(completion: @escaping (Double) -> Void) {
-        let defaultRate = 5.0
-        guard let url = URL(string: "https://www.cbr.ru/scripts/XML_daily.asp") else {
-            completion(defaultRate); return
-        }
-        
-        URLSession.shared.dataTask(with: url) { data, _, _ in
-            guard let data = data else { completion(defaultRate); return }
-            let parserDelegate = CurrencyParserDelegate()
-            let parser = XMLParser(data: data)
-            parser.delegate = parserDelegate
-            if parser.parse() {
-                completion(parserDelegate.rubToKztRate)
-            } else {
-                completion(defaultRate)
-            }
-        }.resume()
-    }
-    
     // MARK: - Regex Helpers
     
-    private func matches(for regex: String, in text: String) -> [[String]] {
+    private nonisolated func matches(for regex: String, in text: String) -> [[String]] {
         do {
             let regex = try NSRegularExpression(pattern: regex, options: [.dotMatchesLineSeparators])
             let results = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
@@ -252,36 +242,7 @@ class AuctionParser {
         } catch { return [] }
     }
     
-    private func firstMatch(for regex: String, in text: String) -> [String]? {
+    private nonisolated func firstMatch(for regex: String, in text: String) -> [String]? {
         return matches(for: regex, in: text).first
-    }
-}
-
-// MARK: - Currency Parser Delegate
-private final class CurrencyParserDelegate: NSObject, XMLParserDelegate, @unchecked Sendable {
-    var rubToKztRate: Double = 5.0
-    private var foundRUB = false
-    private var nominal: Double = 1.0
-    private var tempValue = ""
-    
-    func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName qName: String?, attributes attributeDict: [String : String] = [:]) {
-        if elementName == "Valute" { foundRUB = (attributeDict["ID"] == "R01335") }
-        tempValue = ""
-    }
-    
-    func parser(_ parser: XMLParser, foundCharacters string: String) {
-        if foundRUB { tempValue += string }
-    }
-    
-    func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName qName: String?) {
-        if foundRUB {
-            if elementName == "Value" {
-                let valStr = tempValue.replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespacesAndNewlines)
-                if let val = Double(valStr), val > 0 { self.rubToKztRate = self.nominal / val }
-            } else if elementName == "Nominal" {
-                if let nom = Double(tempValue.trimmingCharacters(in: .whitespacesAndNewlines)) { self.nominal = nom }
-            }
-        }
-        if elementName == "Valute" && foundRUB { foundRUB = false }
     }
 }

@@ -20,6 +20,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Controllers/Payment/Untitled.swift,
+				Info.plist,
 				Models/Untitled.swift,
 				"ViewModels/Untitled 2.swift",
 				ViewModels/Untitled.swift,

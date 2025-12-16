@@ -49,68 +49,33 @@ class MarketplaceViewModel: ObservableObject {
     init() {
         fetchProducts()
     }
-    
+
     func fetchProducts() {
         isLoading = true
         self.products = []
         
-        let targets: [(id: Int, name: String)] = [
-            (2, "Honda"),
-            (1, "Yamaha"),
-            (3, "Suzuki"),
-            (4, "Kawasaki"),
-            (13, "BMW"),
-            (7, "Ducati")
-        ]
+        let urls = BrandManager.shared.demoUrls.shuffled()
+        
+        print("MarketplaceViewModel: Starting concurrent fetch for \(urls.count) sources...")
         
         print("MarketplaceViewModel: Starting Async Deep Fetch...")
         
-        Task {
-            do {
-                // Use a ThrowingTaskGroup to fetch models for all brands in parallel
-                await withTaskGroup(of: Void.self) { group in
-                    for target in targets {
-                        group.addTask {
-                            do {
-                                // 1. Fetch Models
-                                let brand = Brand(id: target.id, name: target.name, url: "https://motobay.su/brands/\(target.id)")
-                                // The new parser is an actor, so we await calls
-                                let models = try await AuctionParser.shared.fetchModels(for: brand, limit: 12)
-                                
-                                // 2. Fetch Bikes for top 10 models
-                                let topModels = models.prefix(10)
-                                
-                                for model in topModels {
-                                    do {
-                                        let bikes = try await AuctionParser.shared.fetchBikes(url: model.url)
-                                        
-                                        // 3. Find best bike with image
-                                        let bestBike = bikes.first(where: {
-                                            !$0.image_url.isEmpty &&
-                                            !$0.image_url.contains("nophoto") &&
-                                            $0.image_url.count > 5
-                                        }) ?? bikes.first
-                                        
-                                        if var bike = bestBike {
-                                            // 4. Fix Title
-                                            if !bike.name.lowercased().contains(target.name.lowercased()) {
-                                                bike.name = "\(target.name) \(bike.name)"
-                                            }
-                                            
-                                            // Update UI on Main Actor
-                                            await MainActor.run {
-                                                // Move toProduct here to satisfy MainActor isolation
-                                                let product = bike.toProduct()
-                                                self.products.append(product)
-                                            }
-                                        }
-                                    } catch {
-                                        print("Failed to fetch bike for model \(model.name): \(error)")
-                                    }
-                                }
-                            } catch {
-                                print("Failed to fetch models for \(target.name): \(error)")
-                            }
+        for url in urls {
+            group.enter()
+            DispatchQueue.global(qos: .userInitiated).async {
+                AuctionParser.shared.fetchBikes(url: url) { [weak self] result in
+                    defer { group.leave() }
+                    
+                    switch result {
+                    case .success(let bikes):
+                        guard let self = self else { return }
+                        
+                        let newProducts = bikes.prefix(2).map { bike -> Product in
+                            return bike.toProduct()
+                        }
+                        
+                        DispatchQueue.main.async {
+                            self.products.append(contentsOf: newProducts)
                         }
                     }
                 }
@@ -125,16 +90,6 @@ class MarketplaceViewModel: ObservableObject {
                 await MainActor.run { self.isLoading = false }
             }
         }
-    }
-    
-    private func loadMockBikes() {
-        products = [
-            Product(id: 1, title: "Yamaha R1 2023", price: "₸8,500,000", priceValue: 8500000, category: "Motorcycles", imageName: "motorcycle.fill", description: "Sport bike"),
-            Product(id: 2, title: "Honda CBR 600RR", price: "₸6,200,000", priceValue: 6200000, category: "Motorcycles", imageName: "motorcycle.fill", description: "Sport bike"),
-            Product(id: 3, title: "Kawasaki Ninja 400", price: "₸4,500,000", priceValue: 4500000, category: "Motorcycles", imageName: "motorcycle.fill", description: "Sport bike"),
-            Product(id: 4, title: "Suzuki GSX-R750", price: "₸5,800,000", priceValue: 5800000, category: "Motorcycles", imageName: "motorcycle.fill", description: "Sport bike"),
-            Product(id: 5, title: "BMW S1000RR", price: "₸12,000,000", priceValue: 12000000, category: "Motorcycles", imageName: "motorcycle.fill", description: "Sport bike")
-        ]
     }
     
     // MARK: - Filter Toggle Methods
@@ -216,7 +171,6 @@ class MarketplaceViewModel: ObservableObject {
             }
         }
         
-        
         if !selectedAccessoryTypes.isEmpty && selectedFilter == "Accessories" {
             result = result.filter { product in
                 selectedAccessoryTypes.contains { accessoryType in
@@ -234,7 +188,6 @@ class MarketplaceViewModel: ObservableObject {
             return true
         }
         
-        
         switch sortOption {
         case .priceAsc:
             result.sort { 
@@ -245,7 +198,6 @@ class MarketplaceViewModel: ObservableObject {
                 getPriceValue($0.price) > getPriceValue($1.price)
             }
         case .newest:
-
             result.sort { $0.id > $1.id }
         case .popular:
             break
@@ -260,5 +212,3 @@ class MarketplaceViewModel: ObservableObject {
         return Double(cleaned) ?? 0
     }
 }
-
-

@@ -30,6 +30,7 @@ class MarketplaceViewController: UIViewController {
         return iv
     }()
     
+    
     private lazy var searchTextField: UITextField = {
         let tf = UITextField()
         tf.textColor = .white
@@ -275,5 +276,72 @@ extension MarketplaceViewController: UICollectionViewDataSource, UICollectionVie
         let detailVC = BikeDetailViewController(bike: bike)
         detailVC.hidesBottomBarWhenPushed = true
         navigationController?.pushViewController(detailVC, animated: true)
+    }
+    // MARK: - Public Methods
+
+    /// Применяет фильтр по бренду и переключает на вкладку Motorcycles
+    func applyBrandFilter(_ brand: String) {
+        print("🔍 Применяем фильтр бренда: \(brand)")
+        
+        // Переключаемся на категорию Motorcycles
+        viewModel.selectedFilter = "Motorcycles"
+        
+        // Очищаем все предыдущие фильтры
+        viewModel.clearAllFilters()
+        
+        // Выбираем нужный бренд
+        viewModel.selectedBrands.insert(brand)
+        
+        // Обновляем UI
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            // Перезагружаем коллекцию
+            self.collectionView.reloadData()
+            
+            // Скроллим в начало списка
+            if self.collectionView.numberOfItems(inSection: 0) > 0 {
+                self.collectionView.scrollToItem(
+                    at: IndexPath(item: 0, section: 0),
+                    at: .top,
+                    animated: true
+                )
+            }
+            
+            // Показываем уведомление
+            self.showFilterAppliedToast(brand: brand)
+        }
+    }
+
+    // MARK: - Toast Notification
+
+    private func showFilterAppliedToast(brand: String) {
+        let toastLabel = UILabel()
+        toastLabel.backgroundColor = UIColor(hex: "00FF88").withAlphaComponent(0.95)
+        toastLabel.textColor = .black
+        toastLabel.font = .systemFont(ofSize: 14, weight: .semibold)
+        toastLabel.textAlignment = .center
+        toastLabel.text = "🏍️ Filtered by \(brand)"
+        toastLabel.alpha = 0
+        toastLabel.layer.cornerRadius = 10
+        toastLabel.clipsToBounds = true
+        
+        view.addSubview(toastLabel)
+        toastLabel.snp.makeConstraints { make in
+            make.centerX.equalToSuperview()
+            make.top.equalTo(view.safeAreaLayoutGuide).offset(16)
+            make.width.equalTo(220)
+            make.height.equalTo(44)
+        }
+        
+        UIView.animate(withDuration: 0.3, animations: {
+            toastLabel.alpha = 1.0
+        }) { _ in
+            UIView.animate(withDuration: 0.3, delay: 2.0, options: .curveEaseOut, animations: {
+                toastLabel.alpha = 0.0
+            }, completion: { _ in
+                toastLabel.removeFromSuperview()
+            })
+        }
     }
 }

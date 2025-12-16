@@ -49,13 +49,11 @@ class MarketplaceViewModel: ObservableObject {
     init() {
         fetchProducts()
     }
-    
+
     func fetchProducts() {
         isLoading = true
-        self.products = [] // Clear existing
+        self.products = []
         
-        // 1. Shuffle URLs to ensure we get a random mix of Brands/Models (Honda, Yamaha, BMW, etc.) immediately
-        // 2. Limit to top 2 bikes per model to prevent one model (e.g. CB1000R) from dominating the feed
         let urls = BrandManager.shared.demoUrls.shuffled()
         
         print("MarketplaceViewModel: Starting concurrent fetch for \(urls.count) sources...")
@@ -72,13 +70,11 @@ class MarketplaceViewModel: ObservableObject {
                     case .success(let bikes):
                         guard let self = self else { return }
                         
-                        // Limit to 2 bikes per model -> Maximum variety in the feed
                         let newProducts = bikes.prefix(2).map { bike -> Product in
                             return bike.toProduct()
                         }
                         
                         DispatchQueue.main.async {
-                            // Append new items to existing list to show progress
                             self.products.append(contentsOf: newProducts)
                         }
                         
@@ -93,16 +89,6 @@ class MarketplaceViewModel: ObservableObject {
             self.isLoading = false
             print("MarketplaceViewModel: Finished loading. Total count: \(self.products.count)")
         }
-    }
-    
-    private func loadMockBikes() {
-        products = [
-            Product(id: 1, title: "Yamaha R1 2023", price: "₸8,500,000", priceValue: 8500000, category: "Motorcycles", imageName: "motorcycle.fill", description: "Sport bike"),
-            Product(id: 2, title: "Honda CBR 600RR", price: "₸6,200,000", priceValue: 6200000, category: "Motorcycles", imageName: "motorcycle.fill", description: "Sport bike"),
-            Product(id: 3, title: "Kawasaki Ninja 400", price: "₸4,500,000", priceValue: 4500000, category: "Motorcycles", imageName: "motorcycle.fill", description: "Sport bike"),
-            Product(id: 4, title: "Suzuki GSX-R750", price: "₸5,800,000", priceValue: 5800000, category: "Motorcycles", imageName: "motorcycle.fill", description: "Sport bike"),
-            Product(id: 5, title: "BMW S1000RR", price: "₸12,000,000", priceValue: 12000000, category: "Motorcycles", imageName: "motorcycle.fill", description: "Sport bike")
-        ]
     }
     
     // MARK: - Filter Toggle Methods
@@ -184,7 +170,6 @@ class MarketplaceViewModel: ObservableObject {
             }
         }
         
-        
         if !selectedAccessoryTypes.isEmpty && selectedFilter == "Accessories" {
             result = result.filter { product in
                 selectedAccessoryTypes.contains { accessoryType in
@@ -202,7 +187,6 @@ class MarketplaceViewModel: ObservableObject {
             return true
         }
         
-        
         switch sortOption {
         case .priceAsc:
             result.sort { 
@@ -213,7 +197,6 @@ class MarketplaceViewModel: ObservableObject {
                 getPriceValue($0.price) > getPriceValue($1.price)
             }
         case .newest:
-
             result.sort { $0.id > $1.id }
         case .popular:
             break
@@ -228,5 +211,3 @@ class MarketplaceViewModel: ObservableObject {
         return Double(cleaned) ?? 0
     }
 }
-
-
